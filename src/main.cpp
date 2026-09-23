@@ -3,16 +3,21 @@
 #include <WebServer.h>
 #include <LittleFS.h>
 
+#define LED_PIN 2
+
 const char* ssid = "AFFA_2.4G";
 const char* password = "Affa@2307";
-
+  
 WebServer server(80);
 
+bool led = false;
 
-// ======================================
-// Página principal
-// ======================================
+// Declarar as funções antes de usá-las
+void setLedState(bool state);
 
+// =============================
+// HTML
+// =============================
 void handleRoot()
 {
     File file = LittleFS.open("/index.html", "r");
@@ -24,15 +29,12 @@ void handleRoot()
     }
 
     server.streamFile(file, "text/html");
-
     file.close();
 }
 
-
-// ======================================
+// =============================
 // CSS
-// ======================================
-
+// =============================
 void handleCSS()
 {
     File file = LittleFS.open("/style.css", "r");
@@ -44,15 +46,12 @@ void handleCSS()
     }
 
     server.streamFile(file, "text/css");
-
     file.close();
 }
 
-
-// ======================================
+// =============================
 // JavaScript
-// ======================================
-
+// =============================
 void handleJS()
 {
     File file = LittleFS.open("/script.js", "r");
@@ -64,54 +63,44 @@ void handleJS()
     }
 
     server.streamFile(file, "application/javascript");
-
     file.close();
 }
 
+// =============================
+// API STATUS
+// =============================
+void handleStatus()
+{
+    led = !led;
+    setLedState(led);
 
-// ======================================
-// SETUP
-// ======================================
+    String json = "{";
+    json += "\"status\":\"online\",";
+    json += "\"led\":";
+    json += led ? "\"ligado\"" : "\"desligado\"";
+    json += "}";
+
+    server.send(200, "application/json", json);
+}
+
+void setLedState(bool state)
+{
+    digitalWrite(LED_PIN, state ? HIGH : LOW);
+}
 
 void setup()
 {
     Serial.begin(115200);
+    pinMode(LED_PIN, OUTPUT);
 
-    // Inicializa LittleFS
+    // LittleFS
     if (!LittleFS.begin(true))
     {
         Serial.println("Erro ao inicializar LittleFS!");
         return;
     }
 
-    Serial.println("LittleFS inicializado!");
-
-
-    // ==================================
-    // Verifica se o index.html existe
-    // ==================================
-
-    File file = LittleFS.open("/index.html", "r");
-
-    if (file)
-    {
-        Serial.println("index.html encontrado!");
-
-        Serial.print("Tamanho: ");
-        Serial.println(file.size());
-
-        file.close();
-    }
-    else
-    {
-        Serial.println("ERRO: index.html NAO encontrado!");
-    }
-
-
-    // ==================================
-    // Conecta ao Wi-Fi
-    // ==================================
-
+    // Wi-Fi
     Serial.println();
     Serial.print("Conectando ao Wi-Fi");
 
@@ -124,37 +113,23 @@ void setup()
     }
 
     Serial.println();
-
     Serial.println("Wi-Fi conectado!");
 
     Serial.print("IP do ESP32: ");
     Serial.println(WiFi.localIP());
 
-
-    // ==================================
-    // Rotas
-    // ==================================
-
+    // Rotas da página
     server.on("/", HTTP_GET, handleRoot);
-
     server.on("/style.css", HTTP_GET, handleCSS);
-
     server.on("/script.js", HTTP_GET, handleJS);
 
-
-    // ==================================
-    // Inicia servidor
-    // ==================================
+    // Rotas da API
+    server.on("/api/status", HTTP_GET, handleStatus);
 
     server.begin();
 
     Serial.println("Servidor HTTP iniciado!");
 }
-
-
-// ======================================
-// LOOP
-// ======================================
 
 void loop()
 {
